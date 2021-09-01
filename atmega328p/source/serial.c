@@ -5,6 +5,7 @@
 #include <string.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/atomic.h>
 
 #include "utils.h"
 
@@ -12,8 +13,8 @@
 
 struct serial_buffer {
     volatile unsigned char buffer[SERIAL_BUFFER_SIZE];
-    volatile unsigned head;
-    volatile unsigned tail;
+    volatile unsigned char head;
+    volatile unsigned char tail;
 };
 
 static volatile struct serial_buffer serial_rx;
@@ -28,23 +29,21 @@ static inline int serial_buffer_isempty(volatile struct serial_buffer *buffer)
 __attribute__((always_inline))
 static inline int serial_buffer_isfull(volatile struct serial_buffer *buffer)
 {
-    return ((buffer->head + 1) % SERIAL_BUFFER_SIZE) == buffer->tail;
+    return ((unsigned char)(buffer->head + 1) % SERIAL_BUFFER_SIZE) == buffer->tail;
 }
 
 __attribute__((always_inline))
 static inline void serial_buffer_put(volatile struct serial_buffer *buffer, char c)
 {
-    volatile unsigned head = buffer->head;
-    buffer->buffer[head++] = c;
-    buffer->head = head % SERIAL_BUFFER_SIZE;
+    buffer->buffer[buffer->head] = c;
+    buffer->head = (unsigned char)(buffer->head + 1) % SERIAL_BUFFER_SIZE;
 }
 
 __attribute__((always_inline))
 static inline char serial_buffer_get(volatile struct serial_buffer *buffer)
 {
-    volatile unsigned tail = buffer->tail;
-    char c = buffer->buffer[tail++];
-    buffer->tail = tail % SERIAL_BUFFER_SIZE;
+    char c = buffer->buffer[buffer->tail];
+    buffer->tail = (unsigned char)(buffer->tail + 1) % SERIAL_BUFFER_SIZE;
     return c;
 }
 

@@ -10,11 +10,10 @@ SERIAL := /dev/ttyACM0
 CC := avr-gcc
 OBJCOPY := avr-objcopy
 OBJDUMP := avr-objdump
-SIZE := avr-size
 AVRDUDE := avrdude
 
-OPTIM := -Os -g -fdata-sections -ffunction-sections -flto -fuse-linker-plugin -fipa-pta -fshort-enums #-fgraphite-identity -floop-nest-optimize
-CFLAGS := $(OPTIM) -Wall -Wextra -std=c17 -DF_CPU=16000000L
+OPTIM := -Os -g -fdata-sections -ffunction-sections -flto -fuse-linker-plugin -fshort-enums
+CFLAGS := $(OPTIM) -Wall -Wextra -std=c11 -DF_CPU=16000000L
 LDFLAGS := $(OPTIM) -Wl,--gc-sections -Wl,--print-gc-sections
 
 rwildcard = $(foreach d, $(wildcard $1*), $(filter $(subst *, %, $2), $d) $(call rwildcard, $d/, $2))
@@ -35,17 +34,16 @@ upload: $(name).hex $(name).lst
 
 .PHONY: screen
 screen: upload
-	minicom -D $(SERIAL) -b 2000000
+	minicom -D $(SERIAL) -b 500000
 
 %.hex: $(dir_build)/%.elf
 	$(OBJCOPY) -O ihex -R .eeprom $< $@
 
 %.lst: $(dir_build)/%.elf
-	$(OBJDUMP) -h -S $< > $@
+	$(OBJDUMP) -S $< > $@
 
 $(dir_build)/$(name).elf: $(objects) | $$(dir $$@)
 	$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@
-	$(SIZE) $@
 
 $(dir_build)/%.o: $(dir_source)/%.c | $$(dir $$@)
 	$(COMPILE.c) -MMD -MF $(@:.o=.d) $(OUTPUT_OPTION) $<
@@ -54,4 +52,4 @@ $(dir_build)/%.o: $(dir_source)/%.c | $$(dir $$@)
 %/:
 	mkdir -p $@
 
--include $(patsubst %.o, %.d, $(objects))
+-include $(objects:.o=.d)

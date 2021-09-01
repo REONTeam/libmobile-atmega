@@ -4,10 +4,11 @@
 
 #define cycles(us) (F_CPU * (long long)(us) / 1000000)
 
+// Get optimized to the proper instructions
 #define cbi(sfr, bit) (sfr &= ~_BV(bit))
 #define sbi(sfr, bit) (sfr |= _BV(bit))
 
-// Stupid definitions for handling pins.
+// Definitions for handling pins
 
 #define _pin(port, pin) PORT ## port ## pin
 #define _port(port, pin) PORT ## port
