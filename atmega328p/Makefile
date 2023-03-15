@@ -18,7 +18,8 @@ LDFLAGS := $(OPTIM) -Wl,--gc-sections -Wl,--print-gc-sections
 
 CPPFLAGS := \
 	-I $(dir_source)/libmobile \
-	-D MOBILE_ENABLE_IMPL_WEAK
+	-D MOBILE_ENABLE_IMPL_WEAK \
+	-D MOBILE_ENABLE_NO32BIT
 
 rwildcard = $(foreach d,$(wildcard $1/*),$(filter $2,$d) $(call rwildcard,$d,$2))
 objects := $(patsubst $(dir_source)/%.c,$(dir_build)/%.o,$(call rwildcard,$(dir_source),%.c))
