@@ -4,7 +4,9 @@
 #include <avr/eeprom.h>
 #include <avr/pgmspace.h>
 #include <util/atomic.h>
-#include "libmobile/mobile.h"
+
+#include <mobile.h>
+#include <mobile_data.h>
 
 #include "utils.h"
 #include "pins.h"
@@ -21,6 +23,13 @@
 
 // Define this to print every command sent and received
 #define DEBUG_CMD
+
+#define A_UNUSED __attribute__((unused))
+
+struct mobile_adapter adapter;
+
+volatile uint32_t micros = 0;
+uint32_t micros_latch[MOBILE_MAX_TIMERS] = {0};
 
 #ifdef DEBUG_SPI
 #define BUF_LEN 0x100
@@ -56,26 +65,19 @@ unsigned char buffer_get(void)
 char last_SPDR = 0xD2;
 #endif
 
-struct mobile_adapter adapter;
-
-volatile uint32_t micros = 0;
-uint32_t micros_latch[MOBILE_MAX_TIMERS] = {0};
-
-#define A_UNUSED __attribute__((unused))
-
 #ifdef DEBUG_CMD
-void mobile_board_debug_log(A_UNUSED void *user, const char *line)
+void mobile_impl_debug_log(A_UNUSED void *user, const char *line)
 {
     printf_P(PSTR("%s\r\n"), line);
 }
 #endif
 
-void mobile_board_serial_disable(A_UNUSED void *user)
+void mobile_impl_serial_disable(A_UNUSED void *user)
 {
     SPCR = SPSR = 0;
 }
 
-void mobile_board_serial_enable(A_UNUSED void *user)
+void mobile_impl_serial_enable(A_UNUSED void *user, A_UNUSED bool mode_32bit)
 {
     pinmode(PIN_SPI_MISO, OUTPUT);
     SPCR = _BV(SPE) | _BV(SPIE) | _BV(CPOL) | _BV(CPHA);
@@ -83,26 +85,26 @@ void mobile_board_serial_enable(A_UNUSED void *user)
     SPDR = 0xD2;
 }
 
-bool mobile_board_config_read(A_UNUSED void *user, void *dest, uintptr_t offset, size_t size)
+bool mobile_impl_config_read(A_UNUSED void *user, void *dest, uintptr_t offset, size_t size)
 {
     eeprom_read_block(dest, (void *)offset, size);
     return true;
 }
 
-bool mobile_board_config_write(A_UNUSED void *user, const void *src, uintptr_t offset, size_t size)
+bool mobile_impl_config_write(A_UNUSED void *user, const void *src, uintptr_t offset, size_t size)
 {
     eeprom_write_block(src, (void *)offset, size);
     return true;
 }
 
-void mobile_board_time_latch(A_UNUSED void *user, enum mobile_timers timer)
+void mobile_impl_time_latch(A_UNUSED void *user, unsigned timer)
 {
     ATOMIC_BLOCK(ATOMIC_FORCEON) {
         micros_latch[timer] = micros;
     }
 }
 
-bool mobile_board_time_check_ms(A_UNUSED void *user, enum mobile_timers timer, unsigned ms)
+bool mobile_impl_time_check_ms(A_UNUSED void *user, unsigned timer, unsigned ms)
 {
     bool ret;
     ATOMIC_BLOCK(ATOMIC_FORCEON) {
@@ -118,7 +120,7 @@ int main(void)
 
     // Initialize
     serial_init(500000);
-    mobile_init(&adapter, NULL, NULL);
+    mobile_init(&adapter, NULL);
 
     // Set up timer 0
     TCNT0 = 0;
@@ -131,6 +133,7 @@ int main(void)
     printf_P(PSTR("----\r\n"));
 #endif
 
+    mobile_start(&adapter);
     for (;;) {
         mobile_loop(&adapter);
 

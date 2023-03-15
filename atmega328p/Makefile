@@ -16,8 +16,12 @@ OPTIM := -Os -g -fdata-sections -ffunction-sections -flto -fuse-linker-plugin -f
 CFLAGS := $(OPTIM) -Wall -Wextra -std=c11 -DF_CPU=16000000L
 LDFLAGS := $(OPTIM) -Wl,--gc-sections -Wl,--print-gc-sections
 
-rwildcard = $(foreach d, $(wildcard $1*), $(filter $(subst *, %, $2), $d) $(call rwildcard, $d/, $2))
-objects := $(patsubst $(dir_source)/%.c, $(dir_build)/%.o, $(call rwildcard, $(dir_source)/, *.c))
+CPPFLAGS := \
+	-I $(dir_source)/libmobile \
+	-D MOBILE_ENABLE_IMPL_WEAK
+
+rwildcard = $(foreach d,$(wildcard $1/*),$(filter $2,$d) $(call rwildcard,$d,$2))
+objects := $(patsubst $(dir_source)/%.c,$(dir_build)/%.o,$(call rwildcard,$(dir_source),%.c))
 
 .SECONDEXPANSION:
 
@@ -46,7 +50,7 @@ $(dir_build)/$(name).elf: $(objects) | $$(dir $$@)
 	$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@
 
 $(dir_build)/%.o: $(dir_source)/%.c | $$(dir $$@)
-	$(COMPILE.c) -MMD -MF $(@:.o=.d) $(OUTPUT_OPTION) $<
+	$(COMPILE.c) -MMD -MP $(OUTPUT_OPTION) $<
 
 .PRECIOUS: %/
 %/:

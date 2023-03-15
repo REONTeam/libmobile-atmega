@@ -4,7 +4,7 @@
 
 #define cycles(us) (F_CPU * (long long)(us) / 1000000)
 
-// Get optimized to the proper instructions
+// Get optimized to the proper instruction
 #define cbi(sfr, bit) (sfr &= ~_BV(bit))
 #define sbi(sfr, bit) (sfr |= _BV(bit))
 
