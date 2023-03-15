@@ -63,7 +63,7 @@ unsigned char buffer_get(void)
     return c;
 }
 
-char last_SPDR = 0xD2;
+char last_SPDR = MOBILE_SERIAL_IDLE_BYTE;
 #endif
 
 #ifdef DEBUG_CMD
@@ -83,7 +83,7 @@ void mobile_impl_serial_enable(A_UNUSED void *user, A_UNUSED bool mode_32bit)
     pinmode(PIN_SPI_MISO, OUTPUT);
     SPCR = _BV(SPE) | _BV(SPIE) | _BV(CPOL) | _BV(CPHA);
     SPSR = 0;
-    SPDR = 0xD2;
+    SPDR = MOBILE_SERIAL_IDLE_BYTE;
 }
 
 bool mobile_impl_config_read(A_UNUSED void *user, void *dest, uintptr_t offset, size_t size)
