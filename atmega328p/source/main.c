@@ -4,6 +4,7 @@
 #include <avr/eeprom.h>
 #include <avr/pgmspace.h>
 #include <util/atomic.h>
+#include <util/delay.h>
 
 #include <mobile.h>
 #include <mobile_data.h>
@@ -124,6 +125,7 @@ int main(void)
 
     // Set up timer 0
     TCNT0 = 0;
+    TCCR0A = 0;
     TCCR0B = _BV(CS01) | _BV(CS00);  // Prescale by 1/64
     TIMSK0 = _BV(TOIE0);  // Enable the interrupt
 
@@ -162,9 +164,20 @@ ISR (TIMER0_OVF_vect)
 {
     // Hang if the stack canary has been tripped
     if (STACK_CANARY != STACK_CANARY_VAL) {
-        UDR0 = '`';
-        for(;;);
+        // Disable SPI and blink the led
+        SPCR = 0;
+        pinmode(PIN_LED, OUTPUT);
+        for(;;) {
+            writepin(PIN_LED, OUTPUT);
+            _delay_ms(100);
+            writepin(PIN_LED, LOW);
+            _delay_ms(100);
+        }
     }
 
+    // Overflows every 64 (prescaler) * 256 (overflow) cycles
+    // F_CPU is in cycles/second
+    // Given the used values, overflows every 1.024 ms.
     micros += (64 * 256) / (F_CPU / 1000000L);
+    // TODO: Use Timer CTC mode to interrupt every 1ms exactly
 }
