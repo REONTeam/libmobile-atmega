@@ -11,6 +11,7 @@
 
 #include "utils.h"
 #include "pins.h"
+#include "timer.h"
 #include "serial.h"
 
 // A stack canary is a value that will be checked periodically
@@ -29,7 +30,6 @@
 
 struct mobile_adapter adapter;
 
-volatile uint32_t micros = 0;
 uint32_t micros_latch[MOBILE_MAX_TIMERS] = {0};
 
 #ifdef DEBUG_SPI
@@ -100,18 +100,12 @@ bool mobile_impl_config_write(A_UNUSED void *user, const void *src, uintptr_t of
 
 void mobile_impl_time_latch(A_UNUSED void *user, unsigned timer)
 {
-    ATOMIC_BLOCK(ATOMIC_FORCEON) {
-        micros_latch[timer] = micros;
-    }
+    micros_latch[timer] = timer_get();
 }
 
 bool mobile_impl_time_check_ms(A_UNUSED void *user, unsigned timer, unsigned ms)
 {
-    bool ret;
-    ATOMIC_BLOCK(ATOMIC_FORCEON) {
-        ret = (micros - micros_latch[timer]) > ((uint32_t)ms * 1000);
-    }
-    return ret;
+    return (timer_get() - micros_latch[timer]) > ((uint32_t)ms * 1000);
 }
 
 int main(void)
@@ -120,6 +114,7 @@ int main(void)
     STACK_CANARY = STACK_CANARY_VAL;
 
     // Initialize
+    timer_init();
     serial_init(500000);
     mobile_init(&adapter, NULL);
 
@@ -175,9 +170,5 @@ ISR (TIMER0_OVF_vect)
         }
     }
 
-    // Overflows every 64 (prescaler) * 256 (overflow) cycles
-    // F_CPU is in cycles/second
-    // Given the used values, overflows every 1.024 ms.
-    micros += (64 * 256) / (F_CPU / 1000000L);
-    // TODO: Use Timer CTC mode to interrupt every 1ms exactly
+    timer_isr();
 }
