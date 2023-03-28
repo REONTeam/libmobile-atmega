@@ -2,8 +2,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <locale.h>
 #include <libserialport.h>
 
+#include "socket.h"
 #include "gbridge.h"
 #include "gbridge_prot_ma.h"
 
@@ -85,23 +87,34 @@ int main(int argc, char *argv[])
 {
     (void)argc;
     program_name = argv[0];
+    setlocale(LC_ALL, "");
+
+    // Initialize windows sockets
+#ifdef __WIN32__
+    WSADATA wsaData;
+    int wsa_err = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (wsa_err != NO_ERROR) {
+        fprintf(stderr, "WSAStartup failed with error: %d\n", wsa_err);
+        return EXIT_FAILURE;
+    }
+#endif
 
     struct sp_port *port;
 
     if (argc > 1) {
         if (sp_get_port_by_name(argv[1], &port) != SP_OK) {
             program_error("Can't get serial port: '%s'", argv[1]);
-            return 1;
+            return EXIT_FAILURE;
         }
     } else {
         port = serial_guess_port();
-        if (!port) return 1;
+        if (!port) return EXIT_FAILURE;
     }
 
     printf("Selected port: %s\n", sp_get_port_name(port));
     if (serial_open(port) != 0) {
         program_error("serial_open failed");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     gbridge_init();
