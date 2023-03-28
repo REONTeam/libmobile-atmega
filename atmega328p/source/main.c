@@ -14,6 +14,9 @@
 #include "timer.h"
 #include "serial.h"
 
+#include "gbridge.h"
+#include "gbridge_prot_ma.h"
+
 // A stack canary is a value that will be checked periodically
 // This allows making sure the stack doesn't overflow into used data
 #define STACK_SIZE 0x180
@@ -24,9 +27,7 @@
 //#define DEBUG_SPI
 
 // Define this to print every command sent and received
-#define DEBUG_CMD
-
-#define A_UNUSED __attribute__((unused))
+//#define DEBUG_CMD
 
 struct mobile_adapter adapter;
 
@@ -66,45 +67,55 @@ unsigned char buffer_get(void)
 char last_SPDR = MOBILE_SERIAL_IDLE_BYTE;
 #endif
 
+void mobile_impl_debug_log(void *user, const char *line)
+{
+    (void)user;
 #ifdef DEBUG_CMD
-void mobile_impl_debug_log(A_UNUSED void *user, const char *line)
-{
     printf_P(PSTR("%s\r\n"), line);
-}
+#elif !defined(DEBUG_SPI)
+    gbridge_cmd_debug_line(line);
 #endif
+}
 
-void mobile_impl_serial_disable(A_UNUSED void *user)
+void mobile_impl_serial_disable(void *user)
 {
+    (void)user;
     SPCR = SPSR = 0;
 }
 
-void mobile_impl_serial_enable(A_UNUSED void *user, A_UNUSED bool mode_32bit)
+void mobile_impl_serial_enable(void *user, bool mode_32bit)
 {
+    (void)user;
+    (void)mode_32bit;
     pinmode(PIN_SPI_MISO, OUTPUT);
     SPCR = _BV(SPE) | _BV(SPIE) | _BV(CPOL) | _BV(CPHA);
     SPSR = 0;
     SPDR = MOBILE_SERIAL_IDLE_BYTE;
 }
 
-bool mobile_impl_config_read(A_UNUSED void *user, void *dest, uintptr_t offset, size_t size)
+bool mobile_impl_config_read(void *user, void *dest, uintptr_t offset, size_t size)
 {
+    (void)user;
     eeprom_read_block(dest, (void *)offset, size);
     return true;
 }
 
-bool mobile_impl_config_write(A_UNUSED void *user, const void *src, uintptr_t offset, size_t size)
+bool mobile_impl_config_write(void *user, const void *src, uintptr_t offset, size_t size)
 {
+    (void)user;
     eeprom_write_block(src, (void *)offset, size);
     return true;
 }
 
-void mobile_impl_time_latch(A_UNUSED void *user, unsigned timer)
+void mobile_impl_time_latch(void *user, unsigned timer)
 {
+    (void)user;
     micros_latch[timer] = timer_get();
 }
 
-bool mobile_impl_time_check_ms(A_UNUSED void *user, unsigned timer, unsigned ms)
+bool mobile_impl_time_check_ms(void *user, unsigned timer, unsigned ms)
 {
+    (void)user;
     return (timer_get() - micros_latch[timer]) > ((uint32_t)ms * 1000);
 }
 
@@ -117,6 +128,38 @@ int main(void)
     timer_init();
     serial_init(500000);
     mobile_init(&adapter, NULL);
+
+    // Reset configs
+    /*
+    eeprom_write_block(&(char []){0}, (void *)0x000, 1);
+    eeprom_write_block(&(char []){0}, (void *)0x100, 1);
+    */
+
+    // Write config
+    /*
+    mobile_config_load(&adapter);
+    mobile_config_set_dns(&adapter, (struct mobile_addr *)&(struct mobile_addr4){
+        .type = MOBILE_ADDRTYPE_IPV4,
+        .port = 5353,
+        .host = {127, 0, 0, 1}
+    }, NULL);
+    mobile_config_set_relay(&adapter, (struct mobile_addr *)&(struct mobile_addr4){
+        .type = MOBILE_ADDRTYPE_IPV4,
+        .port = MOBILE_DEFAULT_RELAY_PORT,
+        .host = {x, x, x, x}
+    });
+    mobile_config_save(&adapter);
+    pinmode(PIN_LED, OUTPUT);
+    for(;;) {
+        writepin(PIN_LED, HIGH); _delay_ms(100);
+        writepin(PIN_LED, LOW); _delay_ms(100);
+    }
+    */
+
+#if !defined(DEBUG_SPI) && !defined(DEBUG_CMD)
+    gbridge_init();
+    gbridge_prot_ma_init();
+#endif
 
     // Set up timer 0
     TCNT0 = 0;
@@ -133,6 +176,11 @@ int main(void)
     mobile_start(&adapter);
     for (;;) {
         mobile_loop(&adapter);
+
+#if !defined(DEBUG_SPI) && !defined(DEBUG_CMD)
+        gbridge_loop();
+        gbridge_prot_ma_loop();
+#endif
 
 #ifdef DEBUG_SPI
         if (!buffer_isempty()) {
@@ -163,7 +211,7 @@ ISR (TIMER0_OVF_vect)
         SPCR = 0;
         pinmode(PIN_LED, OUTPUT);
         for(;;) {
-            writepin(PIN_LED, OUTPUT);
+            writepin(PIN_LED, HIGH);
             _delay_ms(100);
             writepin(PIN_LED, LOW);
             _delay_ms(100);
